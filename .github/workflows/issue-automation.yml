@@ -1,0 +1,51 @@
+name: Issue Automation
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  auto-comment:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check if issue has relevant label
+      id: check_label
+      run: |
+        if [ "${{ github.event.action }}" == "opened" ] || [ "${{ github.event.action }}" == "labeled" ]; then
+          echo "Checking labels for issue #${{ github.event.issue.number }}"
+          
+          # Check for bug label
+          if echo "${{ github.event.issue.labels.*.name }}" | grep -q "bug"; then
+            echo "label=bug" >> $GITHUB_OUTPUT
+            echo "comment=Thank you. We will fix it." >> $GITHUB_OUTPUT
+          
+          # Check for feature label
+          elif echo "${{ github.event.issue.labels.*.name }}" | grep -q "feature"; then
+            echo "label=feature" >> $GITHUB_OUTPUT
+            echo "comment=Thank you, we will consider to include this feature." >> $GITHUB_OUTPUT
+          
+          # Check for discussion label
+          elif echo "${{ github.event.issue.labels.*.name }}" | grep -q "discussion"; then
+            echo "label=discussion" >> $GITHUB_OUTPUT
+            echo "comment=Thanks for starting this discussion! We welcome community input." >> $GITHUB_OUTPUT
+          
+          else
+            echo "label=none" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "label=none" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Add comment to issue
+      if: steps.check_label.outputs.label != 'none'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '${{ steps.check_label.outputs.comment }}'
+          })
